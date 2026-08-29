@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  inference_api:
+    build: .
+    image: pneumonia-classifier:latest
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=INFO

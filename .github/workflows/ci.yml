@@ -72,8 +72,8 @@ jobs:
         env:
           DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/pneumonia-classifier:${{ github.sha }}
         run: |
-          docker-compose pull
-          docker-compose up -d --no-build
+          docker compose pull
+          docker compose up -d --no-build
           
       - name: Wait for API to boot
         run: sleep 10
@@ -91,4 +91,4 @@ jobs:
         
       - name: Cleanup
         if: always()
-        run: docker-compose down
+        run: docker compose down

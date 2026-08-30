@@ -2,7 +2,7 @@ version: '3.8'
 services:
   inference_api:
     build: .
-    image: pneumonia-classifier:latest
+    image: ${DOCKER_IMAGE_NAME:-pneumonia-classifier:latest}
     ports:
       - "8000:8000"
     restart: unless-stopped

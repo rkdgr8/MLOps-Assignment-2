@@ -52,3 +52,43 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/pneumonia-classifier:latest,${{ secrets.DOCKER_USERNAME }}/pneumonia-classifier:${{ github.sha }}
+
+  deploy-and-test:
+    name: Run CD & Smoke Tests
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          
+      - name: Deploy via Docker Compose
+        env:
+          DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/pneumonia-classifier:${{ github.sha }}
+        run: |
+          docker-compose pull
+          docker-compose up -d --no-build
+          
+      - name: Wait for API to boot
+        run: sleep 10
+        
+      - name: Set up Python for test runner
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          
+      - name: Install dependencies
+        run: pip install requests pillow
+          
+      - name: Run Smoke Tests
+        run: python tests/smoke_test.py
+        
+      - name: Cleanup
+        if: always()
+        run: docker-compose down

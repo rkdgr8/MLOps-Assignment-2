@@ -6,6 +6,8 @@ from torchvision import datasets, transforms, models
 import mlflow
 import mlflow.pytorch
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 def train_model():
     mlflow.set_tracking_uri("sqlite:///mlflow.db")
@@ -65,6 +67,9 @@ def train_model():
         mlflow.log_param("learning_rate", learning_rate)
 
         best_acc = 0.0
+        history = {'train_loss': [], 'val_loss': []}
+        best_val_preds = []
+        best_val_labels = []
 
         for epoch in range(num_epochs):
             print(f'Epoch {epoch}/{num_epochs - 1}')
@@ -77,6 +82,8 @@ def train_model():
 
                 running_loss = 0.0
                 running_corrects = 0
+                epoch_preds = []
+                epoch_labels = []
 
                 for inputs, labels in dataloaders[phase]:
                     inputs = inputs.to(device)
@@ -95,8 +102,13 @@ def train_model():
 
                     running_loss += loss.item() * inputs.size(0)
                     running_corrects += torch.sum(preds == labels.data)
+                    
+                    if phase == 'val':
+                        epoch_preds.extend(preds.cpu().numpy())
+                        epoch_labels.extend(labels.cpu().numpy())
 
                 epoch_loss = running_loss / dataset_sizes[phase]
+                history[f'{phase}_loss'].append(epoch_loss)
                 epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
                 print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
@@ -105,10 +117,34 @@ def train_model():
                 
                 if phase == 'val' and epoch_acc > best_acc:
                     best_acc = epoch_acc
+                    best_val_preds = epoch_preds
+                    best_val_labels = epoch_labels
                     os.makedirs("models", exist_ok=True)
                     torch.save(model.state_dict(), "models/model.pt")
 
         print(f'Best val Acc: {best_acc:4f}')
+        
+        # Plot Loss Curves
+        plt.figure(figsize=(8, 6))
+        plt.plot(range(1, num_epochs+1), history['train_loss'], label='Train Loss')
+        plt.plot(range(1, num_epochs+1), history['val_loss'], label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title('Training and Validation Loss Curve')
+        plt.legend()
+        plt.savefig("loss_curve.png")
+        mlflow.log_artifact("loss_curve.png")
+        plt.close()
+        
+        # Plot Confusion Matrix
+        cm = confusion_matrix(best_val_labels, best_val_preds)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=image_datasets['val'].classes)
+        disp.plot(cmap=plt.cm.Blues)
+        plt.title("Confusion Matrix (Best Epoch)")
+        plt.savefig("confusion_matrix.png")
+        mlflow.log_artifact("confusion_matrix.png")
+        plt.close()
+        
         # Log model artifact to MLflow
         mlflow.pytorch.log_model(model, "model")
 
